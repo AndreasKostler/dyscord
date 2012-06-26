@@ -173,12 +173,6 @@
      (reset-mods!))))
      
 
-(def foo
-  (create-listener-function
-   (fn [event]
-     (.log js/console "keydown")
-     (.log js/console (:keyCode event)))))
-
 ;; global handlers
 (events/listen root-element
                (find-builtin-type :keydown)
@@ -195,5 +189,5 @@
                reset-all!
                true)
 
-
+(key-sequence! "C-x" (fn [] (.log js/console "C-x")))
 (key-sequence! "C-g" (fn [] (reset-keyseq!)))
