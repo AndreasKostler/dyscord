@@ -4,6 +4,8 @@
 
 (def mods (atom { 16 false 18 false 17 false 91 false}))
 
+(def keyseq-handlers (atom {}))
+
 (def modifiers
   (reduce (fn [m [k v]]
             (assoc m k v))
@@ -50,9 +52,38 @@
     "]" 221
     "\\" 220})
 
+;; Stolen from domina
 (def builtin-events (set (map keyword (gobj/getValues events/EventType))))
 
 (def root-element (.. js/window -document))
+
+(defprotocol Event
+  (prevent-default [evt] "Prevents the default action, for example a link redirecting to a URL")
+  (stop-propagation [evt] "Stops event propagation")
+  (target [evt] "Returns the target of the event")
+  (current-target [evt] "Returns the object that had the listener attached")
+  (event-type [evt] "Returns the type of the the event")
+  (raw-event [evt] "Returns the original GClosure event"))
+
+(defn- create-listener-function
+  [f]
+  (fn [evt]
+    (f (reify
+         Event
+         (prevent-default [_] (.preventDefault evt))
+         (stop-propagation [_] (.stopPropagation evt))
+         (target [_] (.-target evt))
+         (current-target [_] (.-currentTarget evt))
+         (event-type [_] (.-type evt))
+         (raw-event [_] evt)
+         ILookup
+         (-lookup [o k]
+           (if-let [val (aget evt k)]
+             val
+             (aget evt (name k))))
+         (-lookup [o k not-found] (or (-lookup o k)
+                                      not-found))))
+    true))
 
 (defn- find-builtin-type
   [evt-type]
@@ -60,41 +91,101 @@
     (name evt-type)
     evt-type))
 
+;; end
+
 (defn index-of [e coll]
   (when-let [[i _] (first (filter (fn [[_ v]] (= e v)) (map-indexed vector coll)))]
     i))
 
-(defn group-chords [c]
-  (let [keys (clojure.string/split c "-")]
-    keys))
+(defn- get-keycode [key]
+  (or (get special-ks key)
+      (get modifiers key)
+      (int (first (.toUpperCase key)))))
 
-(defn key-sequence [kseq fn]
-  (map group-chords kseq))
+(defn canonicalize-keyseq [kseq]
+  (vec
+   (for [chord (remove clojure.string/blank? (clojure.string/split kseq #"[\t ]"))]
+     (let [keys (clojure.string/split chord #"-")
+           keycodes (map get-keycode keys)]
+       (when (every? identity keycodes)
+         (set keycodes))))))
+
+(defn key-sequence! [kseq fn]
+  (let [kseq (clojure.string/split kseq #",")]
+    (doseq [k kseq]
+      (when-let [k (canonicalize-keyseq k)]
+        (swap! keyseq-handlers assoc k fn)))))
 
 
-(defn dispatch [e]
-  (js/alert "Dispatch stub"))
+(defn- canonicalize-command-key [key]
+  (if (or (== key 93)
+          (== key 224))
+    91
+    key))
 
-(defn clear-modifier [e]
-  (js/alert "clear-modifier stub"))
+(defn get-chord [key]
+  (set (conj (map first (filter (fn [[_ v]] (true? v)) @mods)) key)))
 
-(defn reset-modifiers [e]
-  (js/alert "reset-modifiers stub"))
+(defn- modifier? [key]
+  (find @mods key))
+
+(def keyseq (atom []))
+
+(defn- reset-mods! []
+  (reset! mods { 16 false 18 false 17 false 91 false}))
+
+(defn- reset-keyseq! []
+  (reset! keyseq []))
+
+(defn- modifier-pressed? []
+  (some (fn [[_ v]] (true? v)) @mods))
+
+(def dispatch!
+  (create-listener-function
+   (fn [event]
+     (let [key (canonicalize-command-key (.keyCode event))]
+       (if (modifier? key)
+         (swap! mods assoc key true)
+         (let [chord (get-chord event)
+               handler (get @keyseq-handlers (conj @keyseq chord))]
+           ;; see if key-seq is complete
+           (if handler
+             (do
+               (reset-keyseq!)
+               (reset-mods!)
+               (handler))
+             (when modifier-pressed?
+               (swap! keyseq conj chord)))))))))
+          
+
+(defn clear-modifier! [event]
+  (create-listener-function
+   (fn [event]
+     (let [key (canonicalize-command-key (.keyCode event))]
+       (when (modifier? key)
+         (swap! mods assoc key false))))))
+
+(defn reset-all! [event]
+  (create-listener-function
+   (fn [event]
+     (reset-keyseq!)
+     (reset-mods!))))
+     
 
 ;; global handlers
 (events/listen root-element
                (find-builtin-type :keydown)
-               dispatch
+               dispatch!
                true)
 
 (events/listen root-element
                (find-builtin-type :keyup)
-               clear-modifier
+               clear-modifier!
                true)
 
 (events/listen root-element
-               (find-builtin-type :keyup)
-               reset-modifiers
+               (find-builtin-type :focus)
+               reset-all!
                true)
 
 

@@ -2,4 +2,7 @@ pom.xml
 *jar
 /lib/
 /classes/
+/target/
+/war/
 .lein-deps-sum
+.lein-cljsbuild*
