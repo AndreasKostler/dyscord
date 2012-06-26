@@ -146,15 +146,16 @@
    (fn [event]
      (let [key (canonicalize-command-key (:keyCode event))]
        (if (modifier? key)
-         (swap! mods assoc key true)
-         (let [chord (get-chord event)
+         (do
+           (swap! mods assoc key true)
+         (let [chord (get-chord (:keyCode event))
                handler (get @keyseq-handlers (conj @keyseq chord))]
            ;; see if key-seq is complete
            (if handler
              (do
                (reset-keyseq!)
                (reset-mods!))
-               ;;(handler))
+               (handler))
              (when modifier-pressed?
                (swap! keyseq conj chord)))))))))
           
