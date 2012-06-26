@@ -8,7 +8,7 @@ usage
 
 A key sequence, is a sequence of keyboard key presses. Any element in such a sequence can be a [chord](http://www.emacswiki.org/emacs/Chord) composed of a non-modifier key and one or more modifier keys pressed at the same time.
 
-```
+```clj
 ;; define a command for 'a'
 (key-sequence "a" (fn [] (js/alert "You pressed 'a' indeed!")))
 ;; let's do our first chord: 'C-x' by pressing 'ctrl' and 'x' at the same time.
