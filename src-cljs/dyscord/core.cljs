@@ -1,6 +1,7 @@
 (ns dyscord.core
   (:require [goog.object :as gobj]
-            [goog.events :as events]))
+            [goog.events :as events]
+            [clojure.string :as string]))
 
 (def mods (atom { 16 false 18 false 17 false 91 false}))
 
@@ -104,14 +105,14 @@
 
 (defn canonicalize-keyseq [kseq]
   (vec
-   (for [chord (remove clojure.string/blank? (clojure.string/split kseq #"[\t ]"))]
-     (let [keys (clojure.string/split chord #"-")
+   (for [chord (remove string/blank? (string/split kseq #"[\t ]"))]
+     (let [keys (string/split chord #"-")
            keycodes (map get-keycode keys)]
        (when (every? identity keycodes)
          (set keycodes))))))
 
 (defn key-sequence! [kseq fn]
-  (let [kseq (clojure.string/split kseq #",")]
+  (let [kseq (string/split kseq #",")]
     (doseq [k kseq]
       (when-let [k (canonicalize-keyseq k)]
         (swap! keyseq-handlers assoc k fn)))))
@@ -143,7 +144,7 @@
 (def dispatch!
   (create-listener-function
    (fn [event]
-     (let [key (canonicalize-command-key (.keyCode event))]
+     (let [key (canonicalize-command-key (:keyCode event))]
        (if (modifier? key)
          (swap! mods assoc key true)
          (let [chord (get-chord event)
@@ -152,25 +153,31 @@
            (if handler
              (do
                (reset-keyseq!)
-               (reset-mods!)
-               (handler))
+               (reset-mods!))
+               ;;(handler))
              (when modifier-pressed?
                (swap! keyseq conj chord)))))))))
           
 
-(defn clear-modifier! [event]
+(def clear-modifier!
   (create-listener-function
    (fn [event]
-     (let [key (canonicalize-command-key (.keyCode event))]
+     (let [key (canonicalize-command-key (:keyCode event))]
        (when (modifier? key)
          (swap! mods assoc key false))))))
 
-(defn reset-all! [event]
+(def reset-all!
   (create-listener-function
    (fn [event]
      (reset-keyseq!)
      (reset-mods!))))
      
+
+(def foo
+  (create-listener-function
+   (fn [event]
+     (.log js/console "keydown")
+     (.log js/console (:keyCode event)))))
 
 ;; global handlers
 (events/listen root-element
@@ -189,3 +196,4 @@
                true)
 
 
+(key-sequence! "C-g" (fn [] (reset-keyseq!)))
