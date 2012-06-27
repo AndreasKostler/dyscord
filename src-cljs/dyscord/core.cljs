@@ -98,10 +98,10 @@
   (when-let [[i _] (first (filter (fn [[_ v]] (= e v)) (map-indexed vector coll)))]
     i))
 
-(defn- get-keycode [key]
+(defn get-keycode [key]
   (or (get special-ks key)
       (get modifiers key)
-      (int (first (.toUpperCase key)))))
+      (.charCodeAt (.toUpperCase key) 0)))
 
 (defn canonicalize-keyseq [kseq]
   (vec
@@ -135,7 +135,7 @@
 (defn- reset-mods! []
   (reset! mods { 16 false 18 false 17 false 91 false}))
 
-(defn- reset-keyseq! []
+(defn reset-keyseq! []
   (reset! keyseq []))
 
 (defn- modifier-pressed? []
@@ -146,20 +146,17 @@
    (fn [event]
      (let [key (canonicalize-command-key (:keyCode event))]
        (if (modifier? key)
-         (do
-           (swap! mods assoc key true)
-         (let [chord (get-chord (:keyCode event))
+         (swap! mods assoc key true)
+         (let [chord (get-chord key)
                handler (get @keyseq-handlers (conj @keyseq chord))]
            ;; see if key-seq is complete
-           (if handler
+           (if-not (nil? handler)
              (do
                (reset-keyseq!)
-               (reset-mods!))
                (handler))
              (when modifier-pressed?
                (swap! keyseq conj chord)))))))))
           
-
 (def clear-modifier!
   (create-listener-function
    (fn [event]
@@ -172,7 +169,6 @@
    (fn [event]
      (reset-keyseq!)
      (reset-mods!))))
-     
 
 ;; global handlers
 (events/listen root-element
@@ -191,4 +187,6 @@
                true)
 
 (key-sequence! "C-x" (fn [] (.log js/console "C-x")))
+(key-sequence! "M-k C-x, M-l C-y" (fn [] (.log js/console "M-k C-x")))
 (key-sequence! "C-g" (fn [] (reset-keyseq!)))
+
