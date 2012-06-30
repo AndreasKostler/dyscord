@@ -4,5 +4,4 @@ pom.xml
 /classes/
 /target/
 /war/
-.lein-deps-sum
-.lein-cljsbuild*
+.lein-*
