@@ -1,7 +1,6 @@
 (ns dyscord.core
-  (:require [goog.object :as gobj]
-            [goog.events :as events]
-            [clojure.string :as string]))
+  (:require [clojure.string :as string]
+            [dyscord.events :as events]))
 
 (def mods (atom { 16 false 18 false 17 false 91 false}))
 
@@ -53,46 +52,6 @@
     "]" 221
     "\\" 220})
 
-;; Stolen from domina
-(def builtin-events (set (map keyword (gobj/getValues events/EventType))))
-
-(def root-element (.. js/window -document))
-
-(defprotocol Event
-  (prevent-default [evt] "Prevents the default action, for example a link redirecting to a URL")
-  (stop-propagation [evt] "Stops event propagation")
-  (target [evt] "Returns the target of the event")
-  (current-target [evt] "Returns the object that had the listener attached")
-  (event-type [evt] "Returns the type of the the event")
-  (raw-event [evt] "Returns the original GClosure event"))
-
-(defn- create-listener-function
-  [f]
-  (fn [evt]
-    (f (reify
-         Event
-         (prevent-default [_] (.preventDefault evt))
-         (stop-propagation [_] (.stopPropagation evt))
-         (target [_] (.-target evt))
-         (current-target [_] (.-currentTarget evt))
-         (event-type [_] (.-type evt))
-         (raw-event [_] evt)
-         ILookup
-         (-lookup [o k]
-           (if-let [val (aget evt k)]
-             val
-             (aget evt (name k))))
-         (-lookup [o k not-found] (or (-lookup o k)
-                                      not-found))))
-    true))
-
-(defn- find-builtin-type
-  [evt-type]
-  (if (contains? builtin-events evt-type)
-    (name evt-type)
-    evt-type))
-
-;; end
 
 (defn index-of [e coll]
   (when-let [[i _] (first (filter (fn [[_ v]] (= e v)) (map-indexed vector coll)))]
@@ -141,52 +100,35 @@
 (defn- modifier-pressed? []
   (some (fn [[_ v]] (true? v)) @mods))
 
-(def dispatch!
-  (create-listener-function
-   (fn [event]
-     (let [key (canonicalize-command-key (:keyCode event))]
-       (if (modifier? key)
-         (swap! mods assoc key true)
-         (let [chord (get-chord key)
-               handler (get @keyseq-handlers (conj @keyseq chord))]
-           ;; see if key-seq is complete
-           (if-not (nil? handler)
-             (do
-               (reset-keyseq!)
-               (handler))
-             (when modifier-pressed?
-               (swap! keyseq conj chord)))))))))
+(defn dispatch! [event]
+  (let [key (canonicalize-command-key (:keyCode event))]
+    (if (modifier? key)
+      (swap! mods assoc key true)
+      (let [chord (get-chord key)
+            handler (get @keyseq-handlers (conj @keyseq chord))]
+        ;; see if key-seq is complete
+        (if-not (nil? handler)
+          (do
+            (reset-keyseq!)
+            (handler))
+          (when modifier-pressed?
+            (swap! keyseq conj chord)))))))
           
-(def clear-modifier!
-  (create-listener-function
-   (fn [event]
-     (let [key (canonicalize-command-key (:keyCode event))]
-       (when (modifier? key)
-         (swap! mods assoc key false))))))
+(defn clear-modifier! [event]
+  (let [key (canonicalize-command-key (:keyCode event))]
+    (when (modifier? key)
+      (swap! mods assoc key false))))
 
-(def reset-all!
-  (create-listener-function
-   (fn [event]
-     (reset-keyseq!)
-     (reset-mods!))))
+(defn reset-all! [event]
+  (reset-keyseq!)
+  (reset-mods!))
 
 ;; global handlers
-(events/listen root-element
-               (find-builtin-type :keydown)
-               dispatch!
-               true)
+(events/listen! :keydown dispatch!)
 
-(events/listen root-element
-               (find-builtin-type :keyup)
-               clear-modifier!
-               true)
+(events/listen! :keyup clear-modifier!)
 
-(events/listen root-element
-               (find-builtin-type :focus)
-               reset-all!
-               true)
+(events/listen! :focus reset-all!)
 
-(key-sequence! "C-x" (fn [] (.log js/console "C-x")))
-(key-sequence! "M-k C-x, M-l C-y" (fn [] (.log js/console "M-k C-x")))
 (key-sequence! "C-g" (fn [] (reset-keyseq!)))
 
