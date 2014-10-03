@@ -1,5 +1,6 @@
 dyscord
 =======
+[![Gitter](https://badges.gitter.im/Join Chat.svg)](https://gitter.im/AndreasKostler/dyscord?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 My favourite Metal band from Perth, Western Australia and a clojurescript library to bring emacs-like key sequences to web-apps.
 
